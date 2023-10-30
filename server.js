@@ -14,7 +14,6 @@ let db;
 function startDB() {
   //function that connects to the database and initalizes it as empty
   db = new sqlite3.Database("totally_not_my_privateKeys.db");
-
   db.run(`
     CREATE TABLE IF NOT EXISTS keys(
       kid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,7 +129,6 @@ app.get("/.well-known/jwks.json", async (req, res) => {
       const jwksResponse = {
         keys: validKeys,
       };
-
       res.setHeader("Content-Type", "application/json");
       res.json(jwksResponse);
     } catch (error) {
@@ -142,7 +140,6 @@ app.get("/.well-known/jwks.json", async (req, res) => {
 
 app.post("/auth", (req, res) => {
   const isExpired = req.query?.expired === "true"; //bool to check if expired param is passed in
-
   const dbQuery = isExpired
     ? "SELECT * FROM keys WHERE exp < ?"
     : "SELECT * FROM keys WHERE exp >= ?"; //change db query based on isExpired bool
@@ -152,7 +149,6 @@ app.post("/auth", (req, res) => {
       console.error(err);
       return res.status(500).send("Server Error");
     }
-
     if (!row) {
       return res.status(404).send("Key not found");
     }
