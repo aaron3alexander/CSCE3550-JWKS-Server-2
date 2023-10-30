@@ -73,7 +73,7 @@ function generateExpiredToken() {
   const payload = {
     user: "sampleUser",
     iat: Math.floor(Date.now() / 1000) - 30000,
-    exp: Math.floor(Date.now() / 1000) - 3600,
+    exp: Math.floor(Date.now() / 1000) - 3600, //expired already
   };
   const options = {
     algorithm: "RS256",
@@ -94,7 +94,7 @@ app.all("/auth", (req, res, next) => {
   next();
 });
 
-// Middleware to ensure only GET requests are allowed for /jwks
+// Middleware to ensure only GET requests are allowed for /jwks - came from Jacob's code
 app.all("/.well-known/jwks.json", (req, res, next) => {
   if (req.method !== "GET") {
     return res.status(405).send("Method Not Allowed");
@@ -103,21 +103,24 @@ app.all("/.well-known/jwks.json", (req, res, next) => {
 });
 
 app.get("/.well-known/jwks.json", async (req, res) => {
-  const query = "SELECT * FROM keys WHERE exp >= ?";
+  const query = "SELECT * FROM keys WHERE exp >= ?"; //query I'm using for the database
   db.all(query, [Math.floor(Date.now() / 1000)], async (err, rows) => {
+    //query the db
     if (err) {
       console.error(err);
       return res.status(500).send("Internal Server Error");
     }
 
     try {
+      //promise to await the database stuff
       const keyPromises = rows.map(async (row) => {
         const key = await jose.JWK.asKey({
+          //create a jwk
           kid: String(row.kid),
           alg: "RS256",
           kty: "RSA",
           use: "sig",
-          n: pemJwk.pem2jwk(row.key).n,
+          n: pemJwk.pem2jwk(row.key).n, //translate from pem format, grab modulus
           e: "AQAB",
         });
         return key.toJSON();
@@ -132,26 +135,26 @@ app.get("/.well-known/jwks.json", async (req, res) => {
       res.json(jwksResponse);
     } catch (error) {
       console.error(error);
-      res.status(500).send("Internal Server Error");
+      res.status(500).send("Server Error");
     }
   });
 });
 
 app.post("/auth", (req, res) => {
-  const isExpired = req.query?.expired === "true";
+  const isExpired = req.query?.expired === "true"; //bool to check if expired param is passed in
 
   const dbQuery = isExpired
     ? "SELECT * FROM keys WHERE exp < ?"
-    : "SELECT * FROM keys WHERE exp >= ?";
+    : "SELECT * FROM keys WHERE exp >= ?"; //change db query based on isExpired bool
 
   db.get(dbQuery, [Math.floor(Date.now() / 1000)], (err, row) => {
     if (err) {
       console.error(err);
-      return res.status(500).send("Internal Server Error");
+      return res.status(500).send("Server Error");
     }
 
     if (!row) {
-      return res.status(404).send("Private key not found");
+      return res.status(404).send("Key not found");
     }
 
     const options = {
@@ -169,12 +172,12 @@ app.post("/auth", (req, res) => {
       exp: row.exp,
     };
 
-    const token = jwt.sign(payload, row.key, options);
+    const token = jwt.sign(payload, row.key, options); //sign a jwt with the private key
     res.send(token);
   });
 });
 
-startDB();
+startDB(); //initialize database
 
 generateKeyPairs().then(() => {
   generateToken();
@@ -184,4 +187,4 @@ generateKeyPairs().then(() => {
   });
 });
 
-module.exports = app;
+module.exports = app; //export for testing
